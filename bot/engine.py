@@ -36,7 +36,7 @@ class Engine:
         if pos and signal == "exit":
             self._do_close(sym, price, "exit signal")
         elif not pos and signal == "enter":
-            open_n = len(getattr(self.broker, "positions", {}))
+            open_n = self.broker.open_count()
             if self.risk.can_open(open_n):
                 stake = self.risk.stake(equity)
                 stop = price * (1 - stop_pct) if stop_pct else None

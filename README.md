@@ -11,20 +11,41 @@ paper trading).
 
 ## Structure
 ```
-run.py            entry point (--paper works offline now; --live is a skeleton)
+run.py            entry point (--paper offline; --live runs the real loop)
 bot/
   strategies.py   indicators + 3 strategies (trend / meanrev / breakout)
-  risk.py         position sizing, daily loss limit, kill switch
+  risk.py         position sizing, daily loss limit, kill switch (per-day)
   brokers.py      PaperBroker (works) + CcxtBroker + IGBroker (live adapters)
   data.py         unified feed (ccxt + IG) with synthetic offline fallback
   engine.py       one-bar tick: data -> signal -> risk -> execute
+  live.py         live orchestration: per-venue runner + scheduling loop
+  notify.py       Telegram alerts (console fallback when unconfigured)
+  state.py        atomic JSON persistence of kill-switch + stops (restart-safe)
+tests/            pytest suite covering strategies, risk, broker, engine, live
 ```
 
 ## Quick start
 ```bash
 pip install -r requirements.txt
 python run.py --paper          # offline simulation, no keys needed
+pytest -q                      # run the test suite
 ```
+
+## Live mode
+```bash
+cp .env.example .env           # fill in IG demo creds and/or crypto keys
+python run.py --live --once             # one cycle then exit (cron / smoke test)
+python run.py --live --timeframe 1h     # continuous loop on 1h candles
+```
+Crypto and metals are independent venues — each has its own broker, risk
+manager and state file, and a venue is only started if its credentials are
+present (so you can run crypto-only or metals-only). The loop trades the last
+**closed** bar, re-arms the daily kill switch at each calendar-day rollover,
+and persists kill-switch + stop state every cycle so a restart can't silently
+re-arm trading mid-drawdown.
+
+Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` in `.env` to get a push on every
+BUY / SELL / halt; without them, alerts just print to the console.
 
 ## Path to live (do not skip steps)
 1. **Backtest** each strategy/market with the separate `backtester.py` across

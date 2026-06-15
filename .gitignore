@@ -4,3 +4,6 @@ __pycache__/
 *.png
 .DS_Store
 venv/
+.pytest_cache/
+# runtime state snapshots (kill-switch + stops) — machine-local, not source
+state*.json

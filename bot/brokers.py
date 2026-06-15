@@ -20,6 +20,12 @@ class Broker(ABC):
     @abstractmethod
     def close(self, symbol, price): ...
 
+    def open_count(self) -> int:
+        """Number of currently open positions (for the max-open risk gate).
+        Default works for brokers that track positions in a local dict;
+        venue-backed adapters override to query the account."""
+        return len(getattr(self, "positions", {}))
+
 
 # --------------------------------------------------------------------------- #
 class PaperBroker(Broker):
@@ -136,6 +142,9 @@ class IGBroker(Broker):
                 return {"units": d["position"]["size"],
                         "dealId": d["position"]["dealId"]}
         return None
+
+    def open_count(self):
+        return len(self.s.get(f"{self.base}/positions").json()["positions"])
 
     def buy(self, symbol, stake, price, stop=None):
         # stake -> spread-bet size (£/point). Sizing & stop distance need

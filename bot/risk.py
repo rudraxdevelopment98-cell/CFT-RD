@@ -1,5 +1,6 @@
 """Risk controls. This is the part that keeps a bug or a bad streak from
 emptying the account. Tune in config, never bypass."""
+from datetime import date
 
 
 class RiskManager:
@@ -10,10 +11,23 @@ class RiskManager:
         self.max_open = max_open
         self.day_start_equity = None
         self.halted = False
+        self.day = None
 
     def new_day(self, equity):
         self.day_start_equity = equity
         self.halted = False
+        self.day = date.today()
+
+    def maybe_new_day(self, equity):
+        """Reset the daily limit when the calendar day rolls over.
+
+        Lets a long-running live loop re-arm itself each day without an
+        external scheduler. Returns True if a new day was started.
+        """
+        if self.day != date.today():
+            self.new_day(equity)
+            return True
+        return False
 
     def check_daily_limit(self, equity):
         """Trip the kill switch if today's drawdown breaches the limit."""

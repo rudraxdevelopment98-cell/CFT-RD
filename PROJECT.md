@@ -53,19 +53,29 @@ bot/
 The engine is identical in paper and live — only the broker + data source swap.
 
 ## Build roadmap (for Claude Code)
-- [ ] `git init`, commit this scaffold, add `.gitignore` (`.env`, `__pycache__`, `*.pyc`)
+- [x] `git init`, commit this scaffold, add `.gitignore` (`.env`, `__pycache__`, `*.pyc`)
+- [x] **Tests**: pytest suite for strategies, risk, paper broker, engine, state,
+      notify and the live wiring (run `pytest -q`) — guards the money-critical logic
 - [ ] **Validate**: run `backtester.py` on real BTC/ETH across bull/bear/chop;
       extend it to pull IG metal candles and backtest gold/silver too
-- [ ] **Live data**: implement the loop in `run_live()` — fetch latest *closed*
-      bar per market, call `engine.step()`, `time.sleep(timeframe)`
-- [ ] **Crypto live**: wire `CcxtBroker`, test on tiny size
-- [ ] **Metals live**: wire `IGBroker` on the **demo** account; confirm current
-      epics for gold/silver; tune spread-bet size (£/point) + stop distance
-- [ ] **Alerts**: Telegram notify on every BUY/SELL/halt (token in `.env`)
-- [ ] **State persistence**: save positions/equity to a file or SQLite so a
-      restart doesn't lose track
+- [x] **Live data**: `run_live()` loops per venue — fetches the latest *closed*
+      bar per market, calls `engine.step()`, sleeps `timeframe` (`bot/live.py`).
+      `--once` runs a single cycle for cron/smoke tests.
+- [~] **Crypto live**: `CcxtBroker` wired into the loop from `.env`; still needs a
+      tiny-size test on a real key (withdrawals disabled, IP-whitelisted)
+- [~] **Metals live**: `IGBroker` wired (demo by default); still needs the **demo**
+      account run — confirm current gold/silver epics, tune size (£/point) + stops
+- [x] **Alerts**: `bot/notify.py` Telegram push on every BUY/SELL/halt (console
+      fallback when `TELEGRAM_*` unset); never crashes the loop on send failure
+- [x] **State persistence**: `bot/state.py` saves kill-switch + stops to atomic
+      JSON each cycle; restart restores *today's* halt state, ignores stale days
 - [ ] **Deploy**: cheap VPS or Raspberry Pi, run as a service, log to file
-- [ ] **Harden**: reconnect logic, exchange/broker downtime handling, rate limits
+- [ ] **Harden**: reconnect logic, exchange/broker downtime handling, rate limits.
+      Per-market fetch/step errors are already isolated so one bad feed can't
+      stop the others; the per-venue `open_count()` feeds the max-open gate.
+
+> `[~]` = code wired and unit-tested offline, but still needs a real
+> demo/tiny-size run with live credentials before trusting it with money.
 
 ## Security (non-negotiable)
 - Crypto keys: **trade-only, withdrawals disabled, IP-whitelisted**

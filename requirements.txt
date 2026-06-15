@@ -4,3 +4,6 @@ ccxt
 requests
 python-dotenv
 matplotlib
+
+# dev / tests
+pytest
