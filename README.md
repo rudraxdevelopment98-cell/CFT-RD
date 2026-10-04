@@ -13,7 +13,7 @@ paper trading).
 ```
 run.py            entry point (--paper offline; --live runs the real loop)
 bot/
-  strategies.py   indicators + 3 strategies (trend / meanrev / breakout)
+  strategies.py   indicators + strategies (trend / meanrev / breakout / bollinger)
   risk.py         position sizing, daily loss limit, kill switch (per-day)
   brokers.py      PaperBroker (works) + CcxtBroker + IGBroker (live adapters)
   data.py         unified feed (ccxt + IG) with synthetic offline fallback
@@ -46,6 +46,19 @@ re-arm trading mid-drawdown.
 
 Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` in `.env` to get a push on every
 BUY / SELL / halt; without them, alerts just print to the console.
+
+### Which market trades which strategy
+Each market in `run.py`'s `MARKETS` is mapped to the strategy that won **out of
+sample** in `research/` (see `RESEARCH.md`):
+
+| Market | Strategy | Why |
+|---|---|---|
+| Gold, BTC, ETH | `trend` | trend-following; robust params, mostly-green years |
+| Silver | `bollinger` | mean-reversion off the 2σ lower band |
+| Oil | `meanrev` | RSI bounce — **fragile**, smallest size, hard stop |
+
+FX majors were tested and **dropped** — no reliable edge. Re-run the research
+monthly (`python -m research.lab`) and retire any sleeve that stops working.
 
 ## Path to live (do not skip steps)
 1. **Backtest** each strategy/market with the separate `backtester.py` across

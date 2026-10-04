@@ -1,7 +1,7 @@
 """The strategies decide when money moves — pin their signals down."""
 import numpy as np
 
-from bot.strategies import ema, rsi, trend, meanrev, breakout, REGISTRY
+from bot.strategies import ema, rsi, trend, meanrev, breakout, bollinger, REGISTRY
 from conftest import ohlcv
 
 
@@ -16,8 +16,19 @@ def _scan_for_signal(closes, strat, want, warmup=210, **kw):
     return None
 
 
-def test_registry_has_three_strategies():
-    assert set(REGISTRY) == {"trend", "meanrev", "breakout"}
+def test_registry_has_all_strategies():
+    assert set(REGISTRY) == {"trend", "meanrev", "breakout", "bollinger"}
+
+
+def test_bollinger_enters_below_lower_band_exits_at_mid():
+    # flat then a sharp drop well below the 20-day lower band -> enter.
+    closes = list(np.full(30, 100.0)) + [80.0]
+    sig, stop = bollinger(ohlcv(closes))
+    assert sig == "enter" and stop == 0.10
+    # price back at/above the mean -> exit.
+    closes_up = list(np.full(30, 100.0)) + [100.0]
+    sig2, _ = bollinger(ohlcv(closes_up))
+    assert sig2 == "exit"
 
 
 def test_ema_orders_fast_above_slow_in_an_uptrend():

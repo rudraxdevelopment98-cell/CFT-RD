@@ -13,6 +13,10 @@ def ema(s, span):
     return s.ewm(span=span, adjust=False).mean()
 
 
+def sma(s, n):
+    return s.rolling(n).mean()
+
+
 def rsi(s, period=14):
     d = s.diff()
     g = d.clip(lower=0).ewm(alpha=1 / period, adjust=False).mean()
@@ -54,4 +58,20 @@ def breakout(df):
     return None, None
 
 
-REGISTRY = {"trend": trend, "meanrev": meanrev, "breakout": breakout}
+def bollinger(df, n=20, k=2.0):
+    """Mean reversion: buy a close below the lower Bollinger band (n, k),
+    exit when price reverts to the middle band. Validated as Silver's best
+    out-of-sample strategy (research/walkforward.py). A loose 10% hard stop is
+    added for live safety — mean reversion must never hold a falling knife."""
+    mid = sma(df.close, n)
+    sd = df.close.rolling(n).std()
+    c = df.close.iloc[-1]
+    if c < mid.iloc[-1] - k * sd.iloc[-1]:
+        return "enter", 0.10
+    if c >= mid.iloc[-1]:
+        return "exit", 0.10
+    return None, 0.10
+
+
+REGISTRY = {"trend": trend, "meanrev": meanrev, "breakout": breakout,
+            "bollinger": bollinger}

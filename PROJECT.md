@@ -56,8 +56,12 @@ The engine is identical in paper and live — only the broker + data source swap
 - [x] `git init`, commit this scaffold, add `.gitignore` (`.env`, `__pycache__`, `*.pyc`)
 - [x] **Tests**: pytest suite for strategies, risk, paper broker, engine, state,
       notify and the live wiring (run `pytest -q`) — guards the money-critical logic
-- [ ] **Validate**: run `backtester.py` on real BTC/ETH across bull/bear/chop;
-      extend it to pull IG metal candles and backtest gold/silver too
+- [x] **Validate**: `research/` lab backtests 7 strategies on 10y real data
+      (gold/silver/oil/FX/crypto), out-of-sample + walk-forward + parameter
+      robustness. Winners chosen per instrument; FX dropped. See `RESEARCH.md`.
+- [x] **Wire winners into live**: `MARKETS` now maps each market to its
+      out-of-sample strategy (gold/BTC/ETH→trend, silver→bollinger, oil→meanrev);
+      new `bollinger` strategy added to `bot/strategies.py`.
 - [x] **Live data**: `run_live()` loops per venue — fetches the latest *closed*
       bar per market, calls `engine.step()`, sleeps `timeframe` (`bot/live.py`).
       `--once` runs a single cycle for cron/smoke tests.

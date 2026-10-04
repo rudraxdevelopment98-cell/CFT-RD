@@ -20,12 +20,19 @@ from bot.notify import Notifier
 from bot.state import StateStore
 
 # Which markets to trade and with which strategy.
-# Crypto symbols are ccxt format; metals are IG epics (placeholders here).
+# Strategy per market is the OUT-OF-SAMPLE winner from research/ (see RESEARCH.md):
+#   Gold/BTC/ETH -> trend, Silver -> bollinger, Oil -> meanrev (RSI).
+# FX majors were dropped (no reliable edge). Crypto symbols are ccxt format;
+# commodities are IG epics (placeholders — CONFIRM current epics in IG's API
+# companion before trading, they differ between demo/live and change over time).
 MARKETS = [
-    {"name": "BTC",  "symbol": "BTC/USDT",            "strategy": "trend",    "venue": "crypto"},
-    {"name": "ETH",  "symbol": "ETH/USDT",            "strategy": "breakout", "venue": "crypto"},
-    {"name": "GOLD", "symbol": "CS.D.CFDGOLD.CFDGC.IP","strategy": "trend",   "venue": "metal"},
-    {"name": "SILVER","symbol":"CS.D.CFDSILVER.CFDSI.IP","strategy":"meanrev","venue": "metal"},
+    {"name": "BTC",   "symbol": "BTC/USDT",               "strategy": "trend",     "venue": "crypto"},
+    {"name": "ETH",   "symbol": "ETH/USDT",               "strategy": "trend",     "venue": "crypto"},
+    {"name": "GOLD",  "symbol": "CS.D.CFDGOLD.CFDGC.IP",  "strategy": "trend",     "venue": "ig"},
+    {"name": "SILVER","symbol": "CS.D.CFDSILVER.CFDSI.IP","strategy": "bollinger", "venue": "ig"},
+    # Oil edge is real but FRAGILE (−37% in 2020). Keep smallest size; meanrev
+    # carries a hard stop. Confirm the oil epic before enabling.
+    {"name": "OIL",   "symbol": "CC.D.CL.USS.IP",         "strategy": "meanrev",   "venue": "ig"},
 ]
 
 # Map a candle timeframe to seconds (loop cadence) and to IG's resolution code.
@@ -78,7 +85,7 @@ def build_live_venues(timeframe, notify):
         pass  # env may be exported directly; dotenv is just a convenience
 
     crypto_markets = [m for m in MARKETS if m["venue"] == "crypto"]
-    metal_markets = [m for m in MARKETS if m["venue"] == "metal"]
+    ig_markets = [m for m in MARKETS if m["venue"] == "ig"]
     venues = []
 
     if crypto_markets and os.getenv("CRYPTO_API_KEY"):
@@ -93,7 +100,7 @@ def build_live_venues(timeframe, notify):
             fetch=lambda m: data.fetch_crypto(m["symbol"], timeframe, exchange=exchange),
             notify=notify, state=StateStore("state_crypto.json")))
 
-    if metal_markets and os.getenv("IG_API_KEY"):
+    if ig_markets and os.getenv("IG_API_KEY"):
         from bot.brokers import IGBroker
         ig = IGBroker(
             os.environ["IG_API_KEY"], os.environ["IG_IDENTIFIER"],
@@ -101,11 +108,11 @@ def build_live_venues(timeframe, notify):
             demo=os.getenv("IG_DEMO", "true").lower() != "false")
         resolution = IG_RESOLUTION.get(timeframe, "HOUR")
         venues.append(Venue(
-            "metals", ig,
-            RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=2),
-            metal_markets,
+            "ig", ig,
+            RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=3),
+            ig_markets,
             fetch=lambda m: data.fetch_metal_ig(ig, m["symbol"], resolution),
-            notify=notify, state=StateStore("state_metals.json")))
+            notify=notify, state=StateStore("state_ig.json")))
 
     return venues
 
