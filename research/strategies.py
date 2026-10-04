@@ -53,54 +53,56 @@ def _position_from_signals(entries: pd.Series, exits: pd.Series) -> pd.Series:
 
 
 # --- regime / trend strategies (position = condition) --------------------- #
-def trend_ema(df):
-    """EMA 20/50 above + price above 200-EMA regime filter."""
+# Params carry defaults, so `fn(df)` still works everywhere; the walk-forward
+# robustness sweep passes other values to check the edge isn't a lone spike.
+def trend_ema(df, fast=20, slow=50, filt=200):
+    """EMA fast/slow above + price above a longer-EMA regime filter."""
     c = df.close
-    cond = (ema(c, 20) > ema(c, 50)) & (c > ema(c, 200))
+    cond = (ema(c, fast) > ema(c, slow)) & (c > ema(c, filt))
     return cond.astype(float)
 
 
-def ts_momentum(df):
-    """Time-series momentum: long while above the 200-day SMA. The single most
+def ts_momentum(df, n=200):
+    """Time-series momentum: long while above the n-day SMA. The single most
     robust published trend rule across assets."""
-    return (df.close > sma(df.close, 200)).astype(float)
+    return (df.close > sma(df.close, n)).astype(float)
 
 
-def dual_sma(df):
-    """Classic 50/200 golden-cross regime."""
-    return (sma(df.close, 50) > sma(df.close, 200)).astype(float)
+def dual_sma(df, fast=50, slow=200):
+    """Classic golden-cross regime (fast SMA above slow SMA)."""
+    return (sma(df.close, fast) > sma(df.close, slow)).astype(float)
 
 
-def macd_trend(df):
-    """MACD(12,26,9) line above its signal -> long."""
-    macd = ema(df.close, 12) - ema(df.close, 26)
-    signal = ema(macd, 9)
+def macd_trend(df, fast=12, slow=26, sig=9):
+    """MACD line above its signal -> long."""
+    macd = ema(df.close, fast) - ema(df.close, slow)
+    signal = ema(macd, sig)
     return (macd > signal).astype(float)
 
 
 # --- event / stateful strategies ------------------------------------------ #
-def donchian_breakout(df):
-    """Enter on a new 20-day high, exit on a 10-day low (trailing channel)."""
-    hi = df.high.rolling(20).max().shift()
-    lo = df.low.rolling(10).min().shift()
+def donchian_breakout(df, entry=20, exit=10):
+    """Enter on a new `entry`-day high, exit on an `exit`-day low (channel)."""
+    hi = df.high.rolling(entry).max().shift()
+    lo = df.low.rolling(exit).min().shift()
     entries = (df.close > hi).fillna(False)
     exits = (df.close < lo).fillna(False)
     return _position_from_signals(entries, exits)
 
 
-def rsi_meanrev(df):
-    """Buy the bounce: RSI(14) crossing back up through 30; exit when RSI>58."""
-    r = rsi(df.close, 14)
-    entries = ((r > 30) & (r.shift() <= 30)).fillna(False)
-    exits = (r > 58).fillna(False)
+def rsi_meanrev(df, period=14, lo=30, hi=58):
+    """Buy the bounce: RSI crossing back up through `lo`; exit when RSI>`hi`."""
+    r = rsi(df.close, period)
+    entries = ((r > lo) & (r.shift() <= lo)).fillna(False)
+    exits = (r > hi).fillna(False)
     return _position_from_signals(entries, exits)
 
 
-def bollinger_meanrev(df):
-    """Buy a close below the lower Bollinger band (20,2); exit at the mid band."""
-    mid = sma(df.close, 20)
-    sd = df.close.rolling(20).std()
-    entries = (df.close < mid - 2 * sd).fillna(False)
+def bollinger_meanrev(df, n=20, k=2.0):
+    """Buy a close below the lower Bollinger band (n,k); exit at the mid band."""
+    mid = sma(df.close, n)
+    sd = df.close.rolling(n).std()
+    entries = (df.close < mid - k * sd).fillna(False)
     exits = (df.close >= mid).fillna(False)
     return _position_from_signals(entries, exits)
 

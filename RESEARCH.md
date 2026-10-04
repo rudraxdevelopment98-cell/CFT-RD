@@ -57,9 +57,41 @@ far less pain — is what a real edge looks like. £10,000 → ~£20,900 over 3.
 3. **One OOS window.** 2023–2026 was gold-friendly. A different period could look different — needs rolling walk-forward.
 4. **No parameter robustness yet.** We used textbook params; we have not checked they're stable (not just the one lucky setting).
 
+## Walk-forward validation — is the edge real or just luck? (`research/walkforward.py`)
+
+### 1. Year-by-year (fixed params, each calendar year scored separately)
+Total return % per year — a real edge is green in *most* years, not one:
+
+| Sleeve | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | Green yrs |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Gold / TrendEMA | −4 | 0 | 10 | 1 | −12 | 0 | 3 | 26 | **62** | 73% |
+| Silver / Bollinger | −5 | 0 | 10 | 9 | 3 | −6 | 20 | 8 | 11 | 73% |
+| Oil / RSImeanrev | 26 | −14 | 24 | **−37** | 21 | 0 | 17 | 8 | 3 | 64% |
+| BTC / TrendEMA | **890** | −30 | 86 | 165 | 79 | −8 | 61 | 59 | −2 | 73% |
+| ETH / TrendEMA | – | −16 | 2 | 122 | 334 | −5 | 22 | 31 | 26 | 78% |
+
+### 2. Parameter robustness (out-of-sample Sharpe across a grid — want a *plateau*)
+- **Gold / TrendEMA → ROBUST.** Sharpe 0.95–1.21 across the *entire* fast/slow grid. The 20/50 default is not a lucky spike — every neighbour is ~1.1. **Trust it.**
+- **Silver / Bollinger → OK, but needs window ≥ 20.** Short windows (n=10) fail; n≥20 with band k=2–3 is consistently 0.9–1.3. Keep, widen band slightly.
+- **Oil / RSImeanrev → FRAGILE.** Only works for oversold entry 30–35 (lo=20/25 never trigger), depends on very few trades, and lost **−37% in 2020**. Needs a hard stop and tiny size, or drop it.
+- **BTC / TrendEMA → modest but robust.** Sharpe 0.62–0.93 across the grid, best with faster EMAs. Edge is shrinking in recent years — small size.
+
+### Verdict
+| Sleeve | Keep? | Note |
+|---|---|---|
+| **Gold / TrendEMA** | ✅ strong | flat param surface, consistent — the anchor |
+| **Silver / Bollinger** | ✅ keep | consistent; require window ≥ 20 |
+| **Oil / RSImeanrev** | ⚠️ risky | add hard stop + smallest size, or drop |
+| **BTC+ETH / TrendEMA** | ✅ small | robust-ish, big drawdowns, treat as one bucket |
+
+**Honest reading:** Gold's great 2024–25 and crypto's 2017/2020–21 did a lot of
+the heavy lifting — future returns will almost certainly be lower. The *method*
+is validated (robust params, mostly-green years); the *magnitude* is not a
+promise.
+
 ## Step-by-step plan to improve (next)
-- [ ] **Walk-forward**: roll the IS/OOS window across all 10 years, not one split.
-- [ ] **Parameter robustness**: sweep each strategy's params, keep only settings that work across a *range*, not a single peak.
+- [x] **Walk-forward**: year-by-year stability + parameter-robustness sweeps.
+- [x] **Parameter robustness**: confirmed Gold/BTC trend are plateaus; oil is fragile.
 - [ ] **ATR stops + position sizing**: size each sleeve by volatility so risk is equal, add protective stops.
 - [ ] **More history / intraday**: validate on 4h candles for crypto; confirm IG metal epics.
 - [ ] **Wire the winners into the live bot**: map each instrument to its chosen strategy, run on paper → IG demo → tiny live.
