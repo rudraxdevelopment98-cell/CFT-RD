@@ -7,3 +7,6 @@ venv/
 .pytest_cache/
 # runtime state snapshots (kill-switch + stops) — machine-local, not source
 state*.json
+
+# research data cache (regenerate with research/fetch)
+research/data/*.csv

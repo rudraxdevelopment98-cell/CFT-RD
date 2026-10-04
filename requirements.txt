@@ -5,5 +5,8 @@ requests
 python-dotenv
 matplotlib
 
+# research
+yfinance
+
 # dev / tests
 pytest
