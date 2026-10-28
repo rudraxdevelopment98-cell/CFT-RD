@@ -89,9 +89,25 @@ the heavy lifting — future returns will almost certainly be lower. The *method
 is validated (robust params, mostly-green years); the *magnitude* is not a
 promise.
 
+## Position sizing — tested inverse-volatility, REJECTED
+A natural "risk-parity" idea: size each sleeve by 1 / its trailing volatility
+so crypto's big swings stop dominating. Tested it (`research/portfolio.py`):
+
+| Portfolio | CAGR% | Sharpe | MaxDD% |
+|---|---|---|---|
+| **Equal-weight (current)** | 23.4 | **1.33** | −10.5 |
+| Inverse-vol (risk parity) | 10.3 | 0.86 | −8.3 |
+
+Inverse-vol trimmed drawdown slightly but **halved return and cut Sharpe** — it
+down-weighted crypto, which was the biggest return driver, and the book was
+already well-diversified (sleeve correlations ≈ 0). **Decision: keep
+equal-weight; do NOT adopt inverse-vol.** A cautionary example of why every
+"improvement" is validated before it touches the live bot.
+
 ## Step-by-step plan to improve (next)
 - [x] **Walk-forward**: year-by-year stability + parameter-robustness sweeps.
 - [x] **Parameter robustness**: confirmed Gold/BTC trend are plateaus; oil is fragile.
+- [x] **Position sizing**: tested inverse-vol, rejected — equal-weight wins.
 - [ ] **ATR stops + position sizing**: size each sleeve by volatility so risk is equal, add protective stops.
 - [ ] **More history / intraday**: validate on 4h candles for crypto; confirm IG metal epics.
 - [ ] **Wire the winners into the live bot**: map each instrument to its chosen strategy, run on paper → IG demo → tiny live.
