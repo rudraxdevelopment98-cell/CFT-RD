@@ -61,6 +61,39 @@ def test_stop_loss_closes_when_price_breaches_stop(fake_strategies):
     assert b.orders[-1][0] == "sell"
 
 
+def test_engine_enforces_stop_for_brokers_that_dont_echo_it(fake_strategies):
+    """Live brokers (ccxt/IG) don't return a 'stop' on position(); the engine
+    must still stop them out from its own client-side record."""
+    class NoStopBroker(FakeBroker):
+        def position(self, symbol):
+            p = self.positions.get(symbol)
+            return {"units": p["units"]} if p else None   # no 'stop' key, like live
+
+    b = NoStopBroker()
+    eng, _ = _engine(b)
+    eng.step({"name": "X", "symbol": "X", "strategy": "enter_stop"},
+             ohlcv([100] * 5))                              # opens with 5% stop -> 95
+    assert eng.stops["X"] == pytest.approx(95)
+    eng.step({"name": "X", "symbol": "X", "strategy": "hold"},
+             ohlcv([94] * 5))                               # breach the stop
+    assert b.position("X") is None
+    assert "X" not in eng.stops                             # stop forgotten once flat
+
+
+def test_daily_halt_uses_account_wide_marks(fake_strategies):
+    """Kill switch must value ALL open positions via the marks dict, not just
+    the symbol being stepped."""
+    b = FakeBroker(cash=0)
+    eng, risk = _engine(b, daily_loss_limit_pct=0.05)
+    b.buy("A", 5_000, 100)                                  # held elsewhere
+    b.buy("B", 5_000, 100)
+    risk.new_day(10_000)
+    # A crashes 50%; stepping B must see the account-wide loss and halt.
+    eng.step({"name": "B", "symbol": "B", "strategy": "hold"},
+             ohlcv([100] * 5), marks={"A": 50, "B": 100})
+    assert risk.halted is True
+
+
 def test_daily_halt_blocks_new_entries_and_flattens(fake_strategies):
     b = FakeBroker(cash=10_000)
     eng, risk = _engine(b, daily_loss_limit_pct=0.05)

@@ -40,8 +40,7 @@ def fetch_metal_ig(broker, epic, resolution="HOUR", limit=300):
                      params={"resolution": resolution, "max": limit},
                      headers={"Version": "3"})
     rows = r.json()["prices"]
-    def mid(p):  # IG gives bid/ask; use mid
-        return [(b["bid"] + b["ask"]) / 2 for b in [p]][0]
+    # IG quotes bid/ask per OHLC field; we trade the mid.
     df = pd.DataFrame([{
         "ts": p["snapshotTimeUTC"],
         "open": (p["openPrice"]["bid"] + p["openPrice"]["ask"]) / 2,

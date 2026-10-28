@@ -152,6 +152,10 @@ class IGBroker(Broker):
         body = {"epic": symbol, "direction": "BUY", "size": round(stake, 2),
                 "orderType": "MARKET", "currencyCode": "GBP",
                 "forceOpen": True, "guaranteedStop": False, "expiry": "-"}
+        # Attach a server-side stop so a bot crash can't leave a leveraged
+        # position unprotected. IG wants a stop DISTANCE in points below entry.
+        if stop and price and stop < price:
+            body["stopDistance"] = round(price - stop, 2)
         return self.s.post(f"{self.base}/positions/otc", json=body).json()
 
     def close(self, symbol, price):

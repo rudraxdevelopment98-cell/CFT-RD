@@ -35,10 +35,16 @@ class Venue:
         self.engine = Engine(broker, risk, markets, notify=self.notify)
 
     def restore(self):
-        """Re-apply persisted kill-switch state on startup (today only)."""
-        if self.state and self.state.restore_risk(self.risk):
+        """Re-apply persisted kill-switch state + stop levels on startup."""
+        if not self.state:
+            return
+        if self.state.restore_risk(self.risk):
             flag = "HALTED" if self.risk.halted else "armed"
             self.notify(f"[{self.name}] restored today's risk state ({flag})")
+        saved_stops = self.state.load().get("stops") or {}
+        if saved_stops:                                # re-arm stops after a restart
+            self.engine.stops.update(saved_stops)
+            self.notify(f"[{self.name}] restored {len(saved_stops)} stop level(s)")
 
     def tick(self):
         """Process one round of all markets on this venue.
@@ -70,7 +76,7 @@ class Venue:
                 if df is None:
                     continue
                 try:
-                    self.engine.step(m, df)
+                    self.engine.step(m, df, marks=marks)
                 except Exception as e:
                     self.notify(f"[{self.name}/{m['name']}] step error: {e}")
 
@@ -85,10 +91,9 @@ class Venue:
             self.notify(f"[{self.name}] state save failed: {e}")
 
     def _stops(self) -> dict:
-        """Client-side stop levels to persist (paper broker tracks them)."""
-        positions = getattr(self.broker, "positions", {})
-        return {sym: p["stop"] for sym, p in positions.items()
-                if p.get("stop") is not None}
+        """Client-side stop levels to persist (the engine is the source of
+        truth — works for every broker, not just the paper one)."""
+        return {s: v for s, v in self.engine.stops.items() if v is not None}
 
 
 class LiveTrader:

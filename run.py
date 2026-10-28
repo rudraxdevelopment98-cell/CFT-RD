@@ -56,9 +56,12 @@ def run_paper():
     n = len(next(iter(series.values())))
     print(f"Paper run · {len(MARKETS)} markets · {n} bars\n")
     for bar in range(210, n):                 # warm-up for 200-EMA
+        # account-wide marks for this bar, so the kill switch values every
+        # open position (not just the one being stepped).
+        marks = {m["symbol"]: series[m["name"]].close.iloc[bar] for m in MARKETS}
         for m in MARKETS:
             window = series[m["name"]].iloc[: bar + 1]
-            engine.step(m, window)
+            engine.step(m, window, marks=marks)
 
     # final mark-to-market
     marks = {m["symbol"]: series[m["name"]].close.iloc[-1] for m in MARKETS}
