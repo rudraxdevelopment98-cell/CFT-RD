@@ -1,0 +1,30 @@
+# systemd unit for running the bot directly on a VPS / Raspberry Pi (no Docker).
+#
+# Setup:
+#   sudo useradd -r -s /usr/sbin/nologin trader        # optional dedicated user
+#   sudo mkdir -p /opt/personal-trader && sudo chown trader /opt/personal-trader
+#   # copy the repo to /opt/personal-trader, create a venv and .env there:
+#   python3 -m venv /opt/personal-trader/venv
+#   /opt/personal-trader/venv/bin/pip install pandas numpy ccxt requests python-dotenv
+#   sudo cp deploy/personal-trader.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now personal-trader
+#   journalctl -u personal-trader -f     # follow logs
+#
+[Unit]
+Description=Personal multi-asset trading bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trader
+WorkingDirectory=/opt/personal-trader
+Environment=TRADER_DATA_DIR=/opt/personal-trader/var
+# IG_DEMO stays true until you have proven weeks of good behaviour on demo.
+Environment=IG_DEMO=true
+ExecStart=/opt/personal-trader/venv/bin/python run.py --live --timeframe 1h
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

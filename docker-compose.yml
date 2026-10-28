@@ -1,0 +1,13 @@
+# Run the bot as a long-lived service:  docker compose up -d
+# Logs:    docker compose logs -f
+# Stop:    docker compose down
+services:
+  trader:
+    build: .
+    restart: unless-stopped
+    env_file: .env            # IG + crypto keys + Telegram (never commit this)
+    # State snapshots and trader.log persist here across restarts/redeploys.
+    volumes:
+      - ./var:/app/var
+    # Override the candle timeframe if you like:
+    # command: ["--timeframe", "4h"]

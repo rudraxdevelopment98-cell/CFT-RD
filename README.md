@@ -60,6 +60,25 @@ sample** in `research/` (see `RESEARCH.md`):
 FX majors were tested and **dropped** — no reliable edge. Re-run the research
 monthly (`python -m research.lab`) and retire any sleeve that stops working.
 
+## Deploy (run it 24/7)
+State snapshots and a rotating `trader.log` are written to `$TRADER_DATA_DIR`
+(default `.`); point it at a persistent volume.
+
+**Docker (recommended):**
+```bash
+cp .env.example .env     # fill in creds; IG_DEMO stays true
+docker compose up -d     # runs python run.py --live
+docker compose logs -f   # watch it
+```
+State + logs persist in `./var` (mounted volume).
+
+**systemd (VPS / Raspberry Pi, no Docker):** see
+`deploy/personal-trader.service` — it has the full setup steps in its header,
+then `journalctl -u personal-trader -f` to follow logs.
+
+Both default to **IG demo** (`IG_DEMO=true`). Prove weeks of good behaviour on
+demo before switching to a live account.
+
 ## Path to live (do not skip steps)
 1. **Backtest** each strategy/market with the separate `backtester.py` across
    bull / bear / chop periods. Keep only what survives on a risk-adjusted basis.

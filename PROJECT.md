@@ -73,7 +73,10 @@ The engine is identical in paper and live — only the broker + data source swap
       fallback when `TELEGRAM_*` unset); never crashes the loop on send failure
 - [x] **State persistence**: `bot/state.py` saves kill-switch + stops to atomic
       JSON each cycle; restart restores *today's* halt state, ignores stale days
-- [ ] **Deploy**: cheap VPS or Raspberry Pi, run as a service, log to file
+- [x] **Deploy**: Dockerfile + docker-compose (restart: unless-stopped, volume
+      for state+logs) and a systemd unit (`deploy/personal-trader.service`).
+      `bot/logconf.py` writes a rotating `trader.log`; state/log dir is
+      `$TRADER_DATA_DIR`. Both default to IG demo.
 - [ ] **Harden**: reconnect logic, exchange/broker downtime handling, rate limits.
       Per-market fetch/step errors are already isolated so one bad feed can't
       stop the others; the per-venue `open_count()` feeds the max-open gate.

@@ -1,0 +1,13 @@
+.git
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+research/
+backtester.py
+*.md
+.env
+var/
+state*.json
+*.log
+flowchart.svg

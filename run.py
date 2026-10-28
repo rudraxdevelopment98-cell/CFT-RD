@@ -18,6 +18,11 @@ from bot import data
 from bot.live import Venue, LiveTrader
 from bot.notify import Notifier
 from bot.state import StateStore
+from bot.logconf import setup_logging
+
+# Where state snapshots + logs live. Point it at a mounted volume in Docker so
+# they survive a container/host restart.
+DATA_DIR = os.getenv("TRADER_DATA_DIR", ".")
 
 # Which markets to trade and with which strategy.
 # Strategy per market is the OUT-OF-SAMPLE winner from research/ (see RESEARCH.md):
@@ -101,7 +106,8 @@ def build_live_venues(timeframe, notify):
             RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=2),
             crypto_markets,
             fetch=lambda m: data.fetch_crypto(m["symbol"], timeframe, exchange=exchange),
-            notify=notify, state=StateStore("state_crypto.json")))
+            notify=notify,
+            state=StateStore(os.path.join(DATA_DIR, "state_crypto.json"))))
 
     if ig_markets and os.getenv("IG_API_KEY"):
         from bot.brokers import IGBroker
@@ -115,13 +121,16 @@ def build_live_venues(timeframe, notify):
             RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=3),
             ig_markets,
             fetch=lambda m: data.fetch_metal_ig(ig, m["symbol"], resolution),
-            notify=notify, state=StateStore("state_ig.json")))
+            notify=notify,
+            state=StateStore(os.path.join(DATA_DIR, "state_ig.json"))))
 
     return venues
 
 
 def run_live(timeframe="1h", once=False):
-    notify = Notifier.from_env()
+    log = setup_logging(DATA_DIR)
+    notify = Notifier.from_env(echo=log.info)         # log every BUY/SELL/halt
+    log.info("Starting live trader (timeframe=%s)", timeframe)
     venues = build_live_venues(timeframe, notify)
     if not venues:
         raise SystemExit(

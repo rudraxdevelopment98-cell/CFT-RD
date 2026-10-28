@@ -10,3 +10,5 @@ state*.json
 
 # research data cache (regenerate with research/fetch)
 research/data/*.csv
+*.log
+var/
