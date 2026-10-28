@@ -144,16 +144,52 @@ def run_live(timeframe="1h", once=False):
         max_cycles=1 if once else None)
 
 
+# Markets for paper-live: same validated strategies, fetched from Yahoo (daily,
+# no keys). Symbols double as the instrument name so paper P&L reads cleanly.
+PAPERLIVE_MARKETS = [
+    {"name": "GOLD",  "symbol": "GOLD",  "ticker": "GC=F",    "strategy": "trend"},
+    {"name": "SILVER","symbol": "SILVER","ticker": "SI=F",    "strategy": "bollinger"},
+    {"name": "OIL",   "symbol": "OIL",   "ticker": "CL=F",    "strategy": "meanrev"},
+    {"name": "BTC",   "symbol": "BTC",   "ticker": "BTC-USD", "strategy": "trend"},
+    {"name": "ETH",   "symbol": "ETH",   "ticker": "ETH-USD", "strategy": "trend"},
+]
+
+
+def run_paperlive(once=False):
+    """Trade REAL daily market data with fake money — no account, no keys, no
+    risk. The best first step: watch the bot analyse live markets."""
+    log = setup_logging(DATA_DIR)
+    notify = Notifier.from_env(echo=log.info)
+    broker = PaperBroker(cash=10_000)
+    risk = RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=4)
+    venue = Venue(
+        "paperlive", broker, risk, PAPERLIVE_MARKETS,
+        fetch=lambda m: data.fetch_yahoo(m["ticker"]),
+        notify=notify, state=StateStore(os.path.join(DATA_DIR, "state_paperlive.json")),
+        report_equity=True)
+    log.info("Paper-LIVE on real market data · fake £10,000 · daily check · "
+             "%d markets", len(PAPERLIVE_MARKETS))
+    # one check per day; the process stays up and re-checks every 24h.
+    LiveTrader([venue], period_s=86_400, notify=notify).run(
+        max_cycles=1 if once else None)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--paper", action="store_true")
-    ap.add_argument("--live", action="store_true")
+    ap.add_argument("--paper", action="store_true",
+                    help="offline simulation on synthetic data")
+    ap.add_argument("--paperlive", action="store_true",
+                    help="REAL market data, fake money, no keys (recommended first)")
+    ap.add_argument("--live", action="store_true",
+                    help="real orders (needs .env credentials)")
     ap.add_argument("--timeframe", default="1h",
                     help="candle size / loop cadence, e.g. 15m, 1h, 4h, 1d")
     ap.add_argument("--once", action="store_true",
-                    help="run a single live cycle then exit")
+                    help="run a single cycle then exit")
     args = ap.parse_args()
     if args.live:
         run_live(timeframe=args.timeframe, once=args.once)
+    elif args.paperlive:
+        run_paperlive(once=args.once)
     else:
         run_paper()

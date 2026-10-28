@@ -23,7 +23,7 @@ class Venue:
     own StateStore so two venues never clobber each other's saved state."""
 
     def __init__(self, name, broker, risk, markets, fetch, notify=None,
-                 state=None, use_closed_bar=True):
+                 state=None, use_closed_bar=True, report_equity=False):
         self.name = name
         self.broker = broker
         self.risk = risk
@@ -32,7 +32,11 @@ class Venue:
         self.notify = notify or (lambda m: None)
         self.state = state
         self.use_closed_bar = use_closed_bar
+        self.report_equity = report_equity        # paper-live heartbeat
         self.engine = Engine(broker, risk, markets, notify=self.notify)
+
+    def _is_paper(self):
+        return hasattr(self.broker, "cash") and hasattr(self.broker, "positions")
 
     def restore(self):
         """Re-apply persisted kill-switch state + stop levels on startup."""
@@ -45,6 +49,10 @@ class Venue:
         if saved_stops:                                # re-arm stops after a restart
             self.engine.stops.update(saved_stops)
             self.notify(f"[{self.name}] restored {len(saved_stops)} stop level(s)")
+        if self._is_paper() and self.state.restore_broker(self.broker):
+            self.notify(f"[{self.name}] restored paper account "
+                        f"(cash {self.broker.cash:,.0f}, "
+                        f"{len(self.broker.positions)} open)")
 
     def tick(self):
         """Process one round of all markets on this venue.
@@ -80,13 +88,18 @@ class Venue:
                 except Exception as e:
                     self.notify(f"[{self.name}/{m['name']}] step error: {e}")
 
+            if self.report_equity and self._is_paper():
+                self.notify(f"[{self.name}] equity {self.broker.equity(marks):,.0f} "
+                            f"· {len(self.broker.positions)} open")
+
         self.persist()
 
     def persist(self):
         if not self.state:
             return
         try:
-            self.state.persist(risk=self.risk, stops=self._stops())
+            broker = self.broker if self._is_paper() else None
+            self.state.persist(risk=self.risk, stops=self._stops(), broker=broker)
         except Exception as e:
             self.notify(f"[{self.name}] state save failed: {e}")
 

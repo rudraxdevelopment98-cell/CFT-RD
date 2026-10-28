@@ -29,6 +29,20 @@ def test_persist_then_restore_keeps_halt_state_for_today(tmp_path):
     assert s.load()["stops"] == {"X": 95}
 
 
+def test_paper_broker_persist_restore_round_trip(tmp_path):
+    from bot.brokers import PaperBroker
+    s = StateStore(str(tmp_path / "state.json"))
+    b = PaperBroker(cash=10_000)
+    b.buy("BTC", 2_000, 100, stop=95)
+    s.persist(broker=b)
+
+    fresh = PaperBroker(cash=10_000)
+    assert s.restore_broker(fresh) is True
+    assert fresh.cash == b.cash
+    assert "BTC" in fresh.positions
+    assert fresh.positions["BTC"]["stop"] == 95
+
+
 def test_restore_ignores_stale_day(tmp_path):
     s = StateStore(str(tmp_path / "state.json"))
     risk = RiskManager()

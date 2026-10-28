@@ -34,6 +34,23 @@ def fetch_crypto(symbol, timeframe="1h", limit=300, exchange="binance"):
     return df.set_index("ts")
 
 
+# Public daily data via Yahoo — NO account, NO API keys, NO money. Used by
+# paper-live so you can watch the bot analyse real markets at zero risk.
+YAHOO = {"GOLD": "GC=F", "SILVER": "SI=F", "OIL": "CL=F",
+         "BTC": "BTC-USD", "ETH": "ETH-USD"}
+
+
+def fetch_yahoo(ticker, period="2y", interval="1d"):
+    import yfinance as yf
+    d = yf.download(ticker, period=period, interval=interval,
+                    progress=False, auto_adjust=True)
+    if isinstance(d.columns, pd.MultiIndex):
+        d.columns = d.columns.get_level_values(0)
+    d = d[["Open", "High", "Low", "Close", "Volume"]].dropna()
+    d.columns = ["open", "high", "low", "close", "volume"]
+    return d
+
+
 def fetch_metal_ig(broker, epic, resolution="HOUR", limit=300):
     """Pull candles from IG's /prices endpoint (needs a live IGBroker session)."""
     r = broker.s.get(f"{broker.base}/prices/{epic}",

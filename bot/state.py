@@ -36,7 +36,8 @@ class StateStore:
         fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as f:
-                json.dump(data, f, indent=2, sort_keys=True)
+                # default=float coerces numpy floats (prices come from pandas)
+                json.dump(data, f, indent=2, sort_keys=True, default=float)
             os.replace(tmp, self.path)               # atomic on POSIX & Windows
         except Exception:
             if os.path.exists(tmp):
@@ -66,11 +67,28 @@ class StateStore:
         risk.halted = saved["halted"]
         return True
 
-    def persist(self, risk=None, stops: dict | None = None) -> None:
-        """Write current risk + stop state to disk in one shot."""
+    # ---- paper-broker snapshot/restore (paper-live continuity) --------- #
+    def snapshot_broker(self, broker) -> dict:
+        return {"cash": broker.cash,
+                "positions": broker.positions,
+                "closed": getattr(broker, "closed", [])}
+
+    def restore_broker(self, broker) -> bool:
+        saved = self.load().get("broker")
+        if not saved:
+            return False
+        broker.cash = saved["cash"]
+        broker.positions = saved.get("positions", {})
+        broker.closed = saved.get("closed", [])
+        return True
+
+    def persist(self, risk=None, stops: dict | None = None, broker=None) -> None:
+        """Write current risk + stop (+ optional paper-broker) state in one shot."""
         data = self.load()
         if risk is not None:
             data["risk"] = self.snapshot_risk(risk)
         if stops is not None:
             data["stops"] = stops
+        if broker is not None:
+            data["broker"] = self.snapshot_broker(broker)
         self.save(data)

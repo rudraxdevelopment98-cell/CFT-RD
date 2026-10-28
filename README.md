@@ -27,7 +27,8 @@ tests/            pytest suite covering strategies, risk, broker, engine, live
 ## Quick start
 ```bash
 pip install -r requirements.txt
-python run.py --paper          # offline simulation, no keys needed
+python run.py --paperlive      # REAL market data, fake money, no keys (start here — see START_HERE.md)
+python run.py --paper          # offline simulation on synthetic data
 pytest -q                      # run the test suite
 ```
 
