@@ -54,8 +54,11 @@ def fetch_yahoo(ticker, period="2y", interval="1d"):
 def fetch_metal_ig(broker, epic, resolution="HOUR", limit=300):
     """Pull candles from IG's /prices endpoint (needs a live IGBroker session)."""
     # through the broker's throttled, auto-re-login request path
+    # pageSize=0 turns off IG's paging (default 20 rows per page), otherwise
+    # only the first page comes back and long indicators (EMA 200) are garbage
     rows = broker._call("GET", f"/prices/{epic}", version="3",
-                        params={"resolution": resolution, "max": limit})["prices"]
+                        params={"resolution": resolution, "max": limit,
+                                "pageSize": 0})["prices"]
     # IG quotes bid/ask per OHLC field; we trade the mid.
     df = pd.DataFrame([{
         "ts": p["snapshotTimeUTC"],
@@ -65,4 +68,4 @@ def fetch_metal_ig(broker, epic, resolution="HOUR", limit=300):
         "close": (p["closePrice"]["bid"] + p["closePrice"]["ask"]) / 2,
         "volume": p.get("lastTradedVolume", 0)} for p in rows])
     df["ts"] = pd.to_datetime(df["ts"])
-    return df.set_index("ts")
+    return df.set_index("ts").sort_index()

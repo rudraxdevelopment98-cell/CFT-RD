@@ -216,7 +216,7 @@ class IGBroker(Broker):
     BASE_LIVE = "https://api.ig.com/gateway/deal"
 
     def __init__(self, api_key, identifier, password, demo=True, session=None,
-                 min_interval=1.0, sleep=None, clock=None):
+                 min_interval=1.0, sleep=None, clock=None, max_round_up=1.0):
         import time
         if session is None:
             import requests
@@ -225,6 +225,10 @@ class IGBroker(Broker):
         self.base = self.BASE_DEMO if demo else self.BASE_LIVE
         self._creds = {"identifier": identifier, "password": password}
         self.min_interval = min_interval
+        # >1 lets a too-small order round UP to IG's minimum deal size, as long
+        # as that minimum is at most this multiple of the intended stake.
+        # 1.0 (default) never bets more than the risk manager asked for.
+        self.max_round_up = max_round_up
         self._sleep = sleep or time.sleep
         self._clock = clock or time.monotonic
         self._last = None
@@ -299,9 +303,12 @@ class IGBroker(Broker):
         size = round(stake / price, 2)              # £ per point
         minimum = self.min_size(symbol)
         if size < minimum:
-            self.last_reject = (f"size £{size}/pt below IG minimum £{minimum}/pt "
-                                f"(needs ~£{minimum * price:,.0f} per trade); skipped")
-            return None
+            if minimum * price <= stake * self.max_round_up:
+                size = minimum                      # opted-in: bet IG's minimum
+            else:
+                self.last_reject = (f"size £{size}/pt below IG minimum £{minimum}/pt "
+                                    f"(needs ~£{minimum * price:,.0f} per trade); skipped")
+                return None
         body = {"epic": symbol, "direction": "BUY", "size": size,
                 "orderType": "MARKET", "currencyCode": "GBP",
                 "forceOpen": True, "guaranteedStop": False, "expiry": "DFB"}

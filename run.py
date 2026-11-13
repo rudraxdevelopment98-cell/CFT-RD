@@ -29,13 +29,13 @@ DATA_DIR = os.getenv("TRADER_DATA_DIR", ".")
 # Strategy per market is the OUT-OF-SAMPLE winner from research/ (see RESEARCH.md):
 #   Gold/BTC/ETH -> trend, Silver -> bollinger, Oil -> meanrev (RSI).
 # FX majors were dropped (no reliable edge). Crypto symbols are ccxt format;
-# commodities are IG epics (placeholders — CONFIRM current epics in IG's API
-# companion before trading, they differ between demo/live and change over time).
+# commodities are IG spread-bet (DFB) epics, confirmed on IG demo 2026-11-13 with
+# `python -m tools.ig_check` (re-run it on the live account before going live).
 MARKETS = [
     {"name": "BTC",   "symbol": "BTC/GBP",                "strategy": "trend",     "venue": "crypto"},
     {"name": "ETH",   "symbol": "ETH/GBP",                "strategy": "trend",     "venue": "crypto"},
-    {"name": "GOLD",  "symbol": "CS.D.CFDGOLD.CFDGC.IP",  "strategy": "trend",     "venue": "ig"},
-    {"name": "SILVER","symbol": "CS.D.CFDSILVER.CFDSI.IP","strategy": "bollinger", "venue": "ig"},
+    {"name": "GOLD",  "symbol": "CS.D.USCGC.TODAY.IP",    "strategy": "trend",     "venue": "ig"},
+    {"name": "SILVER","symbol": "CS.D.USCSI.TODAY.IP",    "strategy": "bollinger", "venue": "ig"},
     # Oil edge is real but FRAGILE (−37% in 2020). Keep smallest size; meanrev
     # carries a hard stop. Confirm the oil epic before enabling.
     {"name": "OIL",   "symbol": "CC.D.CL.USS.IP",         "strategy": "meanrev",   "venue": "ig"},
@@ -130,7 +130,8 @@ def build_live_venues(timeframe, notify, db=None):
         ig = IGBroker(
             os.environ["IG_API_KEY"], os.environ["IG_IDENTIFIER"],
             os.environ["IG_PASSWORD"],
-            demo=os.getenv("IG_DEMO", "true").lower() != "false")
+            demo=os.getenv("IG_DEMO", "true").lower() != "false",
+            max_round_up=float(os.getenv("IG_MAX_ROUND_UP", "1.0")))
         resolution = IG_RESOLUTION.get(timeframe, "HOUR")
         venues.append(Venue(
             "ig", ResilientBroker(ig, notify=notify),

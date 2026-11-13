@@ -61,9 +61,17 @@ bid (maker fee); unfilled entries are cancelled and re-checked next day. Exits
 try a limit first, then sell the rest at market so they always complete.
 
 **IG (metals, oil):** size is £/point = stake ÷ price. Orders below IG's
-minimum deal size are skipped with an alert. A small account may not reach
-the minimum: e.g. a £0.50/pt minimum on gold near 2,400 needs ~£1,200 per
-trade. Every deal is confirmed; a rejected deal records nothing. Each order
+minimum deal size are skipped with an alert. Minimums checked on IG demo
+(Nov 2026): Spot Gold £1/pt (~£3,900 per trade), Spot Silver £1/pt (~£5,000),
+US Crude £0.04/pt (~£350). At 1/3 of the IG account per market, gold and
+silver need roughly £12,000–15,000 on IG; a small account can trade oil only.
+`IG_MAX_ROUND_UP` (default 1.0 = off) lets a slightly-too-small bet round up
+to the minimum; the demo uses 1.6.
+
+Check the IG connection, epics and minimums without trading:
+```bash
+python -m tools.ig_check
+``` Every deal is confirmed; a rejected deal records nothing. Each order
 carries a server-side stop, requests are throttled, and an expired session
 logs in again automatically.
 

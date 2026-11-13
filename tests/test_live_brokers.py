@@ -165,6 +165,13 @@ class FakeIG:
             return Resp(body={"dealStatus": "REJECTED", "reason": "MARKET_CLOSED"})
         if path == "/positions":
             return Resp(body={"positions": self.positions})
+        if path.startswith("/prices/"):
+            self.price_params = params
+            bar = lambda d, px: {"snapshotTimeUTC": d, "lastTradedVolume": 1,
+                                 **{k: {"bid": px - 1, "ask": px + 1} for k in
+                                    ("openPrice", "highPrice", "lowPrice", "closePrice")}}
+            return Resp(body={"prices": [bar("2026-01-02T00:00:00", 110),
+                                         bar("2026-01-01T00:00:00", 100)]})
         if path == "/accounts":
             return Resp(body={"accounts": [
                 {"preferred": False, "balance": {"balance": 1, "profitLoss": 0}},
@@ -195,6 +202,15 @@ def test_ig_refuses_size_below_minimum():
     assert not any(c[1] == "/positions/otc" for c in sess.calls)
 
 
+def test_ig_round_up_to_minimum_only_when_opted_in_and_close():
+    sess = FakeIG(min_size=1.0)
+    b = _ig(sess, max_round_up=1.5)
+    res = b.buy("CS.D.GOLD", 3333.0, 3900.0)            # wants 0.85, min 1.0 (1.17x)
+    assert res["units"] == 1.0
+    assert b.buy("CS.D.GOLD", 2000.0, 3900.0) is None   # min would be 1.95x -> refused
+    assert "below IG minimum" in b.last_reject
+
+
 def test_ig_rejected_deal_records_nothing():
     b = _ig(FakeIG(accept=False))
     assert b.buy("CS.D.GOLD", 2400.0, 2400.0) is None
@@ -207,6 +223,14 @@ def test_ig_relogs_in_once_on_expired_session():
     sess.expire_once = True
     assert b.equity({}) == 4880                          # preferred: balance + P/L
     assert sess.logins == 2
+
+
+def test_ig_prices_disable_paging_and_sort_oldest_first():
+    from bot.data import fetch_metal_ig
+    sess = FakeIG()
+    df = fetch_metal_ig(_ig(sess), "CS.D.GOLD", resolution="DAY", limit=300)
+    assert sess.price_params["pageSize"] == 0 and sess.price_params["max"] == 300
+    assert list(df.close) == [100, 110]                 # sorted by time, mid price
 
 
 def test_ig_throttles_requests():
