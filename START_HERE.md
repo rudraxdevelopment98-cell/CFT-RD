@@ -44,16 +44,19 @@ sleep mode off karo.
 Restart karoge to bot apna nakli account (positions, cash) yaad rakhega.
 
 ## Step 5 (optional) — Phone pe alert paao (Telegram)
-1. Telegram me **@BotFather** ko message karo → `/newbot` → naam do → ek **token** milega.
-2. Apne naye bot ko koi bhi message bhejo.
-3. Browser me kholo: `https://api.telegram.org/bot<TOKEN>/getUpdates` →
-   `"chat":{"id":12345...}` wala number aapka **chat id** hai.
-4. Folder me `.env.example` ko copy karke naam `.env` rakho, aur bharo:
+1. Telegram app me **@BotFather** dhoondho → **Start** → `/newbot` likho.
+2. Bot ka naam do (jaise `Mera Trading Bot`), phir username jo `bot` pe khatam ho
+   (jaise `rd_trading_alerts_bot`). BotFather ek lamba **token** dega.
+3. Bot ke folder me ye chalao:
    ```
-   TELEGRAM_BOT_TOKEN=aapka_token
-   TELEGRAM_CHAT_ID=aapka_chat_id
+   python -m tools.telegram_setup
    ```
-Ab har trade ka alert phone pe aayega.
+4. Token paste karo (screen pe dikhega nahi, ye normal hai) → Enter.
+5. Telegram me apne naye bot ko kholo → **Start** dabao → koi bhi message bhejo.
+6. Kuch second me phone pe "Trading bot connected" aayega. Settings apne aap
+   `.env` me save ho jaayengi.
+
+⚠️ Token kisi ko mat bhejna, chat me bhi nahi. Wo password jaisa hai.
 
 ---
 
