@@ -20,6 +20,7 @@ def record_strategy():
 def _venue(broker, markets, fetch, **kw):
     risk = RiskManager()
     risk.new_day(broker.equity({}))
+    kw.setdefault("retry_sleep", lambda s: None)
     return Venue("test", broker, risk, markets, fetch=fetch,
                  notify=lambda m: None, **kw)
 

@@ -1,13 +1,27 @@
-# Run the bot as a long-lived service:  docker compose up -d
-# Logs:    docker compose logs -f
+# Run the bot + portal as long-lived services:  docker compose up -d
+# Logs:    docker compose logs -f trader
 # Stop:    docker compose down
 services:
   trader:
     build: .
     restart: unless-stopped
     env_file: .env            # IG + crypto keys + Telegram (never commit this)
-    # State snapshots and trader.log persist here across restarts/redeploys.
+    # trading.db and trader.log persist here across restarts/redeploys.
     volumes:
       - ./var:/app/var
-    # Override the candle timeframe if you like:
-    # command: ["--timeframe", "4h"]
+    # Default is --paperlive. For real orders (after the demo phase):
+    # command: ["--live", "--timeframe", "1h"]
+
+  portal:
+    build: .
+    restart: unless-stopped
+    entrypoint: ["python", "-m", "portal"]
+    env_file: .env            # needs PORTAL_PASSWORD (and optionally PORTAL_USER)
+    environment:
+      PORTAL_HOST: 0.0.0.0    # inside the container only...
+    ports:
+      - "127.0.0.1:8080:8080" # ...published on the VPS's localhost, not the internet
+    volumes:
+      - ./var:/app/var        # portal opens trading.db in SQLite read-only mode
+    depends_on:
+      - trader

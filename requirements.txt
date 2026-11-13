@@ -5,8 +5,13 @@ requests
 python-dotenv
 matplotlib
 
+# portal
+fastapi
+uvicorn
+
 # research
 yfinance
 
 # dev / tests
 pytest
+httpx

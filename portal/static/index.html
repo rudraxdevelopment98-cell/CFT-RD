@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trading Bot Portal</title>
+<style>
+/* Layout: status bar, KPI row, equity chart, market table, trades table. No external assets. */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --fg:#17202c; --muted:#5d6777; --line:#dce1e8;
+  --accent:#a8671a; --up:#1f7a4d; --down:#b42318; --idle:#8a6a00; --grid:#e8ecf1;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1319; --surface:#171d26; --fg:#e6e9ef; --muted:#97a0af; --line:#283040;
+  --accent:#e0a458; --up:#5cc890; --down:#f2837a; --idle:#e6c35a; --grid:#222a36; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--font)}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+h1{font-size:1.3rem;margin:0}
+h2{font-size:.78rem;margin:0;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.status{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.badge.on .dot{background:var(--up);box-shadow:0 0 0 0 var(--up);animation:pulse 2s infinite}
+.badge.idle .dot{background:var(--idle);box-shadow:0 0 8px var(--idle)}
+.badge.off .dot{background:var(--down);box-shadow:0 0 8px var(--down)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--up) 60%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.badge.on .dot{animation:none;box-shadow:0 0 8px var(--up)}}
+.chip{font-family:var(--mono);font-size:.75rem;padding:3px 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+.chip.mode{color:var(--accent);border-color:var(--accent)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.kpi .v{font-size:1.6rem;font-weight:650;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:.8rem;color:var(--muted)}
+.up{color:var(--up)} .down{color:var(--down)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+#chart{width:100%;height:260px;display:block}
+.empty{color:var(--muted);font-size:.9rem;padding:24px 0;text-align:center}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:620px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right} th.n{text-align:right}
+tr:last-child td{border-bottom:0}
+.pill{font-size:.72rem;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.pill.open{color:var(--up);border-color:var(--up)}
+.foot{font-size:.8rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between}
+.err{border:1px solid var(--down);color:var(--down);border-radius:10px;padding:10px 14px;font-size:.88rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Trading Bot Portal</h1>
+    <div class="status">
+      <span class="badge off" id="badge"><span class="dot"></span><span id="badgeText">Checking…</span></span>
+      <span class="chip mode" id="mode">mode: –</span>
+      <span class="chip" id="who">read-only</span>
+    </div>
+  </header>
+
+  <div class="err" id="error" hidden></div>
+
+  <section class="kpis">
+    <div class="kpi"><h2>Today P&amp;L</h2><span class="v" id="kToday">–</span><span class="s">since the start of today (UTC)</span></div>
+    <div class="kpi"><h2>Total equity</h2><span class="v" id="kEq">–</span><span class="s" id="kRealized">realized –</span></div>
+    <div class="kpi"><h2>Win rate</h2><span class="v" id="kWin">–</span><span class="s" id="kTrades">0 closed trades</span></div>
+    <div class="kpi"><h2>Max drawdown</h2><span class="v" id="kDD">–</span><span class="s">largest fall from a peak</span></div>
+  </section>
+
+  <section class="panel">
+    <h2>Equity curve</h2>
+    <svg id="chart" role="img" aria-label="Equity over time"></svg>
+  </section>
+
+  <section class="panel">
+    <h2>Markets &amp; strategies</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Market</th><th>Strategy</th><th>Status</th><th class="n">Size</th><th class="n">Entry</th><th class="n">Last</th><th class="n">Stop</th><th class="n">P&amp;L</th></tr></thead>
+      <tbody id="pos"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section class="panel">
+    <h2>Recent trades</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Closed</th><th>Market</th><th>Strategy</th><th class="n">Entry</th><th class="n">Exit</th><th class="n">P&amp;L</th><th class="n">%</th><th class="n">Fees</th><th>Reason</th></tr></thead>
+      <tbody id="trades"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <div class="foot"><span id="updated">–</span><span>Refreshes every 10 s · this portal cannot change anything</span></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const money = v => v == null ? '–' : (v < 0 ? '-' : '') + '£' + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:2,minimumFractionDigits:2});
+const signed = v => v == null ? '–' : (v > 0 ? '+' : '') + money(v);
+const pct = v => v == null ? '–' : (v > 0 ? '+' : '') + (v*100).toFixed(2) + '%';
+const num = v => v == null ? '–' : Number(v).toLocaleString(undefined,{maximumFractionDigits:4});
+const cls = v => v == null || v === 0 ? '' : v > 0 ? 'up' : 'down';
+const when = ts => ts ? new Date(ts).toLocaleString() : '–';
+const esc = s => String(s ?? '–').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function dur(s){ if(s==null) return '–'; const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60); return d?`${d}d ${h}h`:h?`${h}h ${m}m`:`${m}m`; }
+
+async function get(path){
+  // build from location.origin, which never carries user:pass@ even if the page URL did
+  const r = await fetch(new URL(path, location.origin), {credentials:'same-origin', cache:'no-store'});
+  if(!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return r.json();
+}
+
+function renderStatus(s){
+  const b = $('badge');
+  const state = !s.online ? 'off' : s.state === 'idle' ? 'idle' : 'on';
+  b.className = 'badge ' + state;
+  $('badgeText').textContent = !s.online
+    ? (s.state === 'no-data' ? 'No data yet' : 'Offline')
+    : (s.state === 'idle' ? 'Online · waiting for next check' : 'Online');
+  b.title = s.last_heartbeat ? `Last heartbeat ${when(s.last_heartbeat)} · uptime ${dur(s.uptime_seconds)}` : '';
+  $('mode').textContent = 'mode: ' + (s.mode || '–');
+  $('who').textContent = `read-only · signed in as ${s.user}`;
+  const e = $('error');
+  if (s.last_error && s.seconds_since_heartbeat != null) {
+    e.hidden = false; e.textContent = `Last error (${when(s.last_error_at)}): ${s.last_error}`;
+  } else e.hidden = true;
+}
+
+function renderMetrics(m){
+  $('kToday').textContent = signed(m.today_pnl); $('kToday').className = 'v ' + cls(m.today_pnl);
+  $('kEq').textContent = money(m.total_equity);
+  $('kRealized').textContent = 'realized ' + signed(m.realized_pnl);
+  $('kWin').textContent = m.win_rate == null ? '–' : Math.round(m.win_rate*100) + '%';
+  $('kTrades').textContent = `${m.trades} closed trade${m.trades === 1 ? '' : 's'}`;
+  $('kDD').textContent = m.max_drawdown == null ? '–' : (m.max_drawdown*100).toFixed(1) + '%';
+  $('kDD').className = 'v ' + (m.max_drawdown < 0 ? 'down' : '');
+}
+
+function renderChart(rows){
+  const svg = $('chart'), W = svg.clientWidth || 800, H = 260, L = 64, R = 14, T = 14, B = 28;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  if (rows.length < 2) { svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)" font-size="13">The curve appears after two daily checks.</text>`; return; }
+  const ys = rows.map(r => r.equity), xs = rows.map(r => new Date(r.timestamp).getTime());
+  let lo = Math.min(...ys), hi = Math.max(...ys); if (hi === lo) { hi += 1; lo -= 1; }
+  const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+  const x0 = xs[0], x1 = xs[xs.length-1] === x0 ? x0 + 1 : xs[xs.length-1];
+  const X = t => L + (t - x0) / (x1 - x0) * (W - L - R), Y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  let g = '';
+  for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4, y = Y(v);
+    g += `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="var(--grid)"/><text x="${L-8}" y="${y+4}" text-anchor="end" fill="var(--muted)" font-size="11">£${Math.round(v).toLocaleString()}</text>`; }
+  [x0, x1].forEach((t, i) => g += `<text x="${X(t)}" y="${H-8}" text-anchor="${i ? 'end' : 'start'}" fill="var(--muted)" font-size="11">${new Date(t).toLocaleDateString()}</text>`);
+  const pts = rows.map((r, i) => `${X(xs[i]).toFixed(1)},${Y(r.equity).toFixed(1)}`);
+  const color = ys[ys.length-1] >= ys[0] ? 'var(--up)' : 'var(--down)';
+  g += `<polygon points="${L},${H-B} ${pts.join(' ')} ${X(x1)},${H-B}" fill="${color}" opacity=".12"/>`;
+  g += `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>`;
+  g += `<circle cx="${X(x1)}" cy="${Y(ys[ys.length-1])}" r="4" fill="${color}"/>`;
+  svg.innerHTML = g;
+}
+
+function renderPositions(rows){
+  $('pos').innerHTML = rows.length ? rows.map(r => `<tr>
+    <td><b>${esc(r.market)}</b></td><td>${esc(r.strategy)}</td>
+    <td><span class="pill ${r.status}">${r.status === 'open' ? 'In position' : 'Flat'}</span></td>
+    <td class="n">${num(r.size)}</td><td class="n">${num(r.entry_price)}</td><td class="n">${num(r.last_price)}</td>
+    <td class="n">${num(r.stop_loss)}</td><td class="n ${cls(r.pnl)}">${signed(r.pnl)} ${r.pnl_pct == null ? '' : '(' + pct(r.pnl_pct) + ')'}</td></tr>`).join('')
+    : '<tr><td colspan="8" class="empty">No markets yet. They appear after the bot\'s first run.</td></tr>';
+}
+
+function renderTrades(rows){
+  $('trades').innerHTML = rows.length ? rows.map(t => `<tr>
+    <td>${when(t.exit_time)}</td><td><b>${esc(t.market)}</b></td><td>${esc(t.strategy)}</td>
+    <td class="n">${num(t.entry_price)}</td><td class="n">${num(t.exit_price)}</td>
+    <td class="n ${cls(t.pnl)}">${signed(t.pnl)}</td><td class="n ${cls(t.pnl_pct)}">${pct(t.pnl_pct)}</td>
+    <td class="n">${money(t.commission)}</td><td>${esc(t.reason)}</td></tr>`).join('')
+    : '<tr><td colspan="9" class="empty">No closed trades yet.</td></tr>';
+}
+
+let equityRows = [];
+async function refresh(){
+  try {
+    const [s, m, e, p, t] = await Promise.all(['/api/status','/api/metrics','/api/equity?limit=1000','/api/positions','/api/trades?limit=50'].map(get));
+    renderStatus(s); renderMetrics(m); equityRows = e; renderChart(e); renderPositions(p); renderTrades(t);
+    $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (err) {
+    $('badge').className = 'badge off'; $('badgeText').textContent = 'Portal unreachable';
+    $('updated').textContent = 'Last refresh failed: ' + err.message;
+  }
+}
+window.addEventListener('resize', () => renderChart(equityRows));
+refresh(); setInterval(refresh, 10000);
+</script>
+</body>
+</html>

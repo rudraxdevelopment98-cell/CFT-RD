@@ -77,9 +77,16 @@ The engine is identical in paper and live — only the broker + data source swap
       for state+logs) and a systemd unit (`deploy/personal-trader.service`).
       `bot/logconf.py` writes a rotating `trader.log`; state/log dir is
       `$TRADER_DATA_DIR`. Both default to IG demo.
-- [ ] **Harden**: reconnect logic, exchange/broker downtime handling, rate limits.
-      Per-market fetch/step errors are already isolated so one bad feed can't
-      stop the others; the per-venue `open_count()` feeds the max-open gate.
+- [x] **v0.2 Reliability + database**: `bot/database.py` (SQLite: trades,
+      positions, heartbeats, equity snapshots, kv) is the source of truth;
+      every open/close is one transaction; restart reloads positions, stops,
+      paper cash and kill-switch state. `bot/retry.py` backs off on network
+      reads (orders are never retried). Unreadable equity blocks new trades.
+      CRITICAL Telegram alert on any crashed cycle; heartbeats every minute.
+- [x] **v0.2 Read-only portal**: `portal/` (FastAPI + plain HTML, no CDN),
+      HTTP Basic auth, localhost-only, GET routes only, DB opened read-only.
+- [ ] **Harden (v0.3+)**: limit orders, broker rate limits, reconcile bot
+      positions against the broker, CI on every push.
 
 > `[~]` = code wired and unit-tested offline, but still needs a real
 > demo/tiny-size run with live credentials before trusting it with money.

@@ -55,18 +55,23 @@ class PaperBroker(Broker):
         self.cash -= stake
         self.positions[symbol] = {"units": units, "entry": fill,
                                   "cost": stake, "stop": stop}
-        return {"symbol": symbol, "side": "buy", "price": fill, "units": units}
+        return {"symbol": symbol, "side": "buy", "price": fill, "units": units,
+                "cost": stake, "commission": stake * self.fee}
 
     def close(self, symbol, price):
         p = self.positions.pop(symbol, None)
         if not p:
             return None
         fill = price * (1 - self.slip)
-        proceeds = p["units"] * fill * (1 - self.fee)
+        gross = p["units"] * fill
+        proceeds = gross * (1 - self.fee)
         self.cash += proceeds
         self.closed.append(proceeds / p["cost"] - 1)
         return {"symbol": symbol, "side": "sell", "price": fill,
-                "pnl_pct": proceeds / p["cost"] - 1}
+                "pnl": proceeds - p["cost"],
+                "pnl_pct": proceeds / p["cost"] - 1,
+                # both legs' fees: entry fee on cost + exit fee on proceeds
+                "commission": p["cost"] * self.fee + gross * self.fee}
 
 
 # --------------------------------------------------------------------------- #

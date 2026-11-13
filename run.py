@@ -17,7 +17,8 @@ from bot.engine import Engine
 from bot import data
 from bot.live import Venue, LiveTrader
 from bot.notify import Notifier
-from bot.state import StateStore
+from bot.database import Database
+from bot.retry import ResilientBroker
 from bot.logconf import setup_logging
 
 # Where state snapshots + logs live. Point it at a mounted volume in Docker so
@@ -79,7 +80,12 @@ def run_paper():
           "\nNo closed trades this run.")
 
 
-def build_live_venues(timeframe, notify):
+def open_db():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    return Database(os.path.join(DATA_DIR, "trading.db"))
+
+
+def build_live_venues(timeframe, notify, db=None):
     """Construct the crypto and metals venues from .env credentials.
 
     Each venue is independent: its own broker, risk manager, data fetcher and
@@ -99,15 +105,15 @@ def build_live_venues(timeframe, notify):
     if crypto_markets and os.getenv("CRYPTO_API_KEY"):
         from bot.brokers import CcxtBroker
         exchange = os.getenv("CRYPTO_EXCHANGE", "binance")
-        broker = CcxtBroker(
-            exchange, os.environ["CRYPTO_API_KEY"], os.environ["CRYPTO_SECRET"])
+        broker = ResilientBroker(CcxtBroker(
+            exchange, os.environ["CRYPTO_API_KEY"], os.environ["CRYPTO_SECRET"]),
+            notify=notify)
         venues.append(Venue(
             "crypto", broker,
             RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=2),
             crypto_markets,
             fetch=lambda m: data.fetch_crypto(m["symbol"], timeframe, exchange=exchange),
-            notify=notify,
-            state=StateStore(os.path.join(DATA_DIR, "state_crypto.json"))))
+            notify=notify, db=db))
 
     if ig_markets and os.getenv("IG_API_KEY"):
         from bot.brokers import IGBroker
@@ -117,12 +123,11 @@ def build_live_venues(timeframe, notify):
             demo=os.getenv("IG_DEMO", "true").lower() != "false")
         resolution = IG_RESOLUTION.get(timeframe, "HOUR")
         venues.append(Venue(
-            "ig", ig,
+            "ig", ResilientBroker(ig, notify=notify),
             RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=3),
             ig_markets,
             fetch=lambda m: data.fetch_metal_ig(ig, m["symbol"], resolution),
-            notify=notify,
-            state=StateStore(os.path.join(DATA_DIR, "state_ig.json"))))
+            notify=notify, db=db))
 
     return venues
 
@@ -131,7 +136,8 @@ def run_live(timeframe="1h", once=False):
     log = setup_logging(DATA_DIR)
     notify = Notifier.from_env(echo=log.info)         # log every BUY/SELL/halt
     log.info("Starting live trader (timeframe=%s)", timeframe)
-    venues = build_live_venues(timeframe, notify)
+    db = open_db()
+    venues = build_live_venues(timeframe, notify, db=db)
     if not venues:
         raise SystemExit(
             "No live venues configured. Copy .env.example -> .env and fill in\n"
@@ -140,7 +146,7 @@ def run_live(timeframe="1h", once=False):
             "Start on IG DEMO + tiny crypto size for weeks before real money.")
 
     period = TF_SECONDS.get(timeframe, 3600)
-    LiveTrader(venues, period_s=period, notify=notify).run(
+    LiveTrader(venues, period_s=period, notify=notify, db=db, mode="live").run(
         max_cycles=1 if once else None)
 
 
@@ -160,17 +166,18 @@ def run_paperlive(once=False):
     risk. The best first step: watch the bot analyse live markets."""
     log = setup_logging(DATA_DIR)
     notify = Notifier.from_env(echo=log.info)
+    db = open_db()
     broker = PaperBroker(cash=10_000)
     risk = RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=4)
     venue = Venue(
         "paperlive", broker, risk, PAPERLIVE_MARKETS,
         fetch=lambda m: data.fetch_yahoo(m["ticker"]),
-        notify=notify, state=StateStore(os.path.join(DATA_DIR, "state_paperlive.json")),
-        report_equity=True)
+        notify=notify, db=db, report_equity=True)
     log.info("Paper-LIVE on real market data · fake £10,000 · daily check · "
              "%d markets", len(PAPERLIVE_MARKETS))
     # one check per day; the process stays up and re-checks every 24h.
-    LiveTrader([venue], period_s=86_400, notify=notify).run(
+    LiveTrader([venue], period_s=86_400, notify=notify, db=db,
+               mode="paperlive").run(
         max_cycles=1 if once else None)
 
 
