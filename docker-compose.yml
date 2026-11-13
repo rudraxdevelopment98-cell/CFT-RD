@@ -10,7 +10,7 @@ services:
     volumes:
       - ./var:/app/var
     # Default is --paperlive. For real orders (after the demo phase):
-    # command: ["--live", "--timeframe", "1h"]
+    # command: ["--live", "--timeframe", "1d"]
 
   portal:
     build: .

@@ -22,7 +22,7 @@ WorkingDirectory=/opt/personal-trader
 Environment=TRADER_DATA_DIR=/opt/personal-trader/var
 # IG_DEMO stays true until you have proven weeks of good behaviour on demo.
 Environment=IG_DEMO=true
-ExecStart=/opt/personal-trader/venv/bin/python run.py --live --timeframe 1h
+ExecStart=/opt/personal-trader/venv/bin/python run.py --live --timeframe 1d
 Restart=always
 RestartSec=30
 

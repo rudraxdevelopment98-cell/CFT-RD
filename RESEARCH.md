@@ -112,3 +112,38 @@ equal-weight; do NOT adopt inverse-vol.** A cautionary example of why every
 - [ ] **More history / intraday**: validate on 4h candles for crypto; confirm IG metal epics.
 - [ ] **Wire the winners into the live bot**: map each instrument to its chosen strategy, run on paper → IG demo → tiny live.
 - [ ] **Monthly re-validation**: markets regime-shift; re-run `research.lab` monthly and retire sleeves that stop working.
+
+## v0.3: re-run with real venue costs (`python -m research.realcosts`)
+Data now runs to Nov 2026. Costs per instrument live in `research/costs.py`:
+
+| Scenario | Crypto (Kraken) per side | IG per side | IG overnight funding |
+|---|---|---|---|
+| old assumption | 0.10% | 0.05% | none |
+| **realistic** | 0.45% (limit/maker 0.40% + slip) | 0.03–0.06% | ~6.25%/yr (SONIA ~3.75% + 2.5%) |
+| pessimistic | 0.90% (market/taker 0.80% + slip) | 0.06–0.12% | 7.5%/yr |
+
+Equal-weight portfolio, out of sample:
+
+| Scenario | CAGR% | Sharpe | MaxDD% | £10k becomes |
+|---|---|---|---|---|
+| old assumption | 21.0 | 1.20 | −10.5 | £19,484 |
+| **realistic** | **18.6** | **1.07** | **−11.6** | **£18,139** |
+| pessimistic | 16.9 | 0.99 | −12.4 | £17,271 |
+
+- The edge survives real costs. Every instrument's best strategy is unchanged.
+- **Limit orders matter on crypto:** BTC trend makes ~23% CAGR with maker fees
+  vs ~19% with taker fees. The live Kraken adapter now uses post-only limits.
+- **IG funding is Gold's biggest cost** (23.5% → 18.0%): trend positions are
+  held for weeks and pay funding every night.
+- **Watch Silver:** on the newer window Silver/Bollinger's Sharpe (0.60) is
+  below simply holding silver (0.72). Kept for now; re-check monthly.
+
+### Sizing and kill-switch limits (checked against this data)
+- The research portfolio holds each market at an equal 1/N share. The live bot
+  previously staked 2% per trade (about 1/10 of that); it now sizes 1/N per
+  venue so live results can match what was tested.
+- At that sizing the crypto venue had 16 days below −5% in 3.5 years but only 2
+  below −8%, so its daily kill switch is **8%** (5% would sell normal dips).
+  The IG venue and the combined 5-sleeve paper book never lost 5% in a day
+  (worst −3.8%), so they keep **5%**.
+

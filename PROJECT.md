@@ -85,8 +85,15 @@ The engine is identical in paper and live — only the broker + data source swap
       CRITICAL Telegram alert on any crashed cycle; heartbeats every minute.
 - [x] **v0.2 Read-only portal**: `portal/` (FastAPI + plain HTML, no CDN),
       HTTP Basic auth, localhost-only, GET routes only, DB opened read-only.
-- [ ] **Harden (v0.3+)**: limit orders, broker rate limits, reconcile bot
-      positions against the broker, CI on every push.
+- [x] **v0.3 Real costs + hardening**: research re-run with Kraken fees, IG
+      spreads and overnight funding (`research/realcosts.py`; edge survives,
+      realistic CAGR ~18.6%, Sharpe 1.07). Kraken post-only limit orders. IG
+      sizing fixed (£/pt = stake ÷ price, min deal size, deal confirmation,
+      DFB expiry, throttle, re-login). Live sizing matches research (1/N per
+      venue); kill switch 8% crypto / 5% IG; daily timeframe default; GBP
+      pairs. DB/broker reconciliation each cycle. CI on every push.
+- [ ] **Next**: IG demo run to confirm epics + minimum sizes; monthly
+      re-validation job; control actions in the portal.
 
 > `[~]` = code wired and unit-tested offline, but still needs a real
 > demo/tiny-size run with live credentials before trusting it with money.

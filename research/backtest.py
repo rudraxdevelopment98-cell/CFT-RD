@@ -11,13 +11,15 @@ from . import metrics
 
 
 def run(df: pd.DataFrame, position: pd.Series, cost_per_side=0.0005,
-        capital=10_000) -> dict:
+        capital=10_000, hold_cost_annual=0.0, bars_per_year=252) -> dict:
     """position: target 0/1 at the decision bar. Executed on the NEXT bar
-    (shift 1). cost_per_side: fraction charged on entry and on exit."""
+    (shift 1). cost_per_side: fraction charged on entry and on exit.
+    hold_cost_annual: financing charged while a position is held (e.g. IG's
+    overnight funding on spread bets), spread evenly across bars."""
     pos = position.shift(1).fillna(0.0).clip(0, 1)
     ret = df.close.pct_change().fillna(0.0)
     turnover = pos.diff().abs().fillna(pos.abs())
-    cost = turnover * cost_per_side
+    cost = turnover * cost_per_side + pos * (hold_cost_annual / bars_per_year)
     strat_ret = pos * ret - cost
     equity = capital * (1 + strat_ret).cumprod()
 

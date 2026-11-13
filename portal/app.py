@@ -104,7 +104,7 @@ def create_app(db_path: str | None = None, user: str | None = None,
         d = db()
         if d is None:
             return {"total_equity": None, "today_pnl": None, "win_rate": None,
-                    "max_drawdown": None, "trades": 0, "realized_pnl": 0}
+                    "max_drawdown": None, "trades": 0, "realized_pnl": 0, "fees": 0}
         try:
             series = d.equity_series(limit=100_000)
             stats = d.trade_stats()
@@ -122,6 +122,7 @@ def create_app(db_path: str | None = None, user: str | None = None,
             "max_drawdown": _max_drawdown(values),
             "trades": stats["trades"],
             "realized_pnl": stats["realized_pnl"],
+            "fees": stats["fees"],
         }
 
     @app.get("/api/equity")

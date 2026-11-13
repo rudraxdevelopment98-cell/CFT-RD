@@ -39,7 +39,7 @@ pytest -q                      # run the test suite
 ```bash
 cp .env.example .env           # fill in IG demo creds and/or crypto keys
 python run.py --live --once             # one cycle then exit (cron / smoke test)
-python run.py --live --timeframe 1h     # continuous loop on 1h candles
+python run.py --live                    # continuous loop on daily candles
 ```
 Crypto and metals are independent venues — each has its own broker, risk
 manager and state file, and a venue is only started if its credentials are
@@ -50,6 +50,26 @@ a crash or restart it reloads open positions, stops, paper cash and today's
 kill-switch state from the database, so it never starts from a blank slate.
 Network reads (prices, balances) retry with exponential backoff; orders are
 never retried, because a timed-out order may still have been filled.
+
+**Sizing** matches the research portfolio: each market gets an equal 1/N share
+of its venue's equity. Daily kill switch: 8% for crypto, 5% for IG and
+paper-live (see `RESEARCH.md`). Strategies were validated on **daily** candles,
+so `--timeframe` defaults to `1d`.
+
+**Kraken (crypto, GBP pairs):** entries are post-only limit orders at the best
+bid (maker fee); unfilled entries are cancelled and re-checked next day. Exits
+try a limit first, then sell the rest at market so they always complete.
+
+**IG (metals, oil):** size is £/point = stake ÷ price. Orders below IG's
+minimum deal size are skipped with an alert. A small account may not reach
+the minimum: e.g. a £0.50/pt minimum on gold near 2,400 needs ~£1,200 per
+trade. Every deal is confirmed; a rejected deal records nothing. Each order
+carries a server-side stop, requests are throttled, and an expired session
+logs in again automatically.
+
+**Reconciliation:** each cycle compares the database with the broker. A
+position closed at the broker (server stop or manual) is recorded as a trade;
+a position the bot didn't open is reported once and left alone.
 
 Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` in `.env` to get a push on every
 BUY / SELL / halt; without them, alerts just print to the console.

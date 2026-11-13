@@ -73,12 +73,57 @@ class Venue:
         return with_backoff(lambda: self.fetch(m), attempts=self.fetch_attempts,
                             sleep=self.retry_sleep, on_retry=on_retry)
 
+    def reconcile(self):
+        """Match the database against what the broker actually holds.
+
+        - In the DB but gone at the broker: closed outside the bot (IG's
+          server-side stop, or a manual close). Recorded as a trade at the last
+          known price and the stop is forgotten.
+        - At the broker but not in the DB: a position the bot didn't open.
+          Left alone and reported once; the strategy may still exit it.
+        - Size differs by more than 1%: reported once.
+        Paper venues are their own source of truth and are skipped."""
+        if not self.db or self._is_paper():
+            return
+        warned = getattr(self, "_warned", set())
+        self._warned = warned
+        held = {r["symbol"]: r for r in self.db.positions(self.name)}
+        for m in self.markets:
+            sym = m["symbol"]
+            try:
+                bpos = self.broker.position(sym)
+            except Exception as e:
+                self.notify(f"[{self.name}/{m['name']}] reconcile skipped: {e}")
+                continue
+            row = held.get(sym)
+            if row and not bpos:
+                px = row["last_price"] or row["entry_price"]
+                self.db.close_position(venue=self.name, symbol=sym, exit_price=px,
+                                       reason="closed at broker (stop or manual)")
+                self.engine.stops.pop(sym, None)
+                self.notify(f"[{self.name}] {m['name']} was closed at the broker "
+                            f"(server stop or manual); recorded at ~{px:.2f}")
+            elif bpos and not row and ("untracked", sym) not in warned:
+                warned.add(("untracked", sym))
+                self.notify(f"[{self.name}] {m['name']}: broker holds "
+                            f"{bpos['units']} that the bot did not open")
+            elif bpos and row and row["size"] and \
+                    abs(bpos["units"] - row["size"]) / row["size"] > 0.01 and \
+                    ("size", sym) not in warned:
+                warned.add(("size", sym))
+                self.notify(f"[{self.name}] {m['name']}: broker size {bpos['units']} "
+                            f"vs recorded {row['size']}")
+
     def tick(self, ts=None):
         """Process one round of all markets on this venue.
 
         A fetch/step failure on one market is logged and skipped — one bad
         market must not stop the others or kill the loop.
         """
+        try:
+            self.reconcile()
+        except Exception as e:
+            self.notify(f"[{self.name}] reconcile failed: {e}")
         windows = {}
         for m in self.markets:
             try:

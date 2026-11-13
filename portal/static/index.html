@@ -132,7 +132,7 @@ function renderStatus(s){
 function renderMetrics(m){
   $('kToday').textContent = signed(m.today_pnl); $('kToday').className = 'v ' + cls(m.today_pnl);
   $('kEq').textContent = money(m.total_equity);
-  $('kRealized').textContent = 'realized ' + signed(m.realized_pnl);
+  $('kRealized').textContent = 'realized ' + signed(m.realized_pnl) + ' · fees ' + money(m.fees);
   $('kWin').textContent = m.win_rate == null ? '–' : Math.round(m.win_rate*100) + '%';
   $('kTrades').textContent = `${m.trades} closed trade${m.trades === 1 ? '' : 's'}`;
   $('kDD').textContent = m.max_drawdown == null ? '–' : (m.max_drawdown*100).toFixed(1) + '%';

@@ -63,6 +63,7 @@ def test_metrics(client):
     assert m["total_equity"] == 10_150
     assert m["today_pnl"] == pytest.approx(150)        # vs yesterday's close
     assert m["win_rate"] == 1.0 and m["trades"] == 1
+    assert m["fees"] == 0
     assert m["max_drawdown"] == pytest.approx(-0.10)
 
 

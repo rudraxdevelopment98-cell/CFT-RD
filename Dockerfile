@@ -19,6 +19,6 @@ RUN mkdir -p /app/var
 ENV IG_DEMO=true
 
 # Paper-live (real data, fake money) is the safe default. Switch the compose
-# `command` to ["--live", "--timeframe", "1h"] only after the demo phase.
+# `command` to ["--live", "--timeframe", "1d"] only after the demo phase.
 ENTRYPOINT ["python", "run.py"]
 CMD ["--paperlive"]

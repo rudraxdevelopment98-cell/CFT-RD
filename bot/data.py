@@ -53,10 +53,9 @@ def fetch_yahoo(ticker, period="2y", interval="1d"):
 
 def fetch_metal_ig(broker, epic, resolution="HOUR", limit=300):
     """Pull candles from IG's /prices endpoint (needs a live IGBroker session)."""
-    r = broker.s.get(f"{broker.base}/prices/{epic}",
-                     params={"resolution": resolution, "max": limit},
-                     headers={"Version": "3"})
-    rows = r.json()["prices"]
+    # through the broker's throttled, auto-re-login request path
+    rows = broker._call("GET", f"/prices/{epic}", version="3",
+                        params={"resolution": resolution, "max": limit})["prices"]
     # IG quotes bid/ask per OHLC field; we trade the mid.
     df = pd.DataFrame([{
         "ts": p["snapshotTimeUTC"],

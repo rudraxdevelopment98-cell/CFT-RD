@@ -66,7 +66,9 @@ class Engine:
                 stake = self.risk.stake(equity)
                 stop_price = price * (1 - stop_pct) if stop_pct else None
                 res = self.broker.buy(sym, stake, price, stop=stop_price)
-                if res is None:                       # broker refused (e.g. no cash)
+                if res is None:                       # nothing traded
+                    why = getattr(self.broker, "last_reject", None) or "broker refused"
+                    self.notify(f"BUY {market['name']} not placed: {why}")
                     return
                 if stop_price:
                     self.stops[sym] = stop_price

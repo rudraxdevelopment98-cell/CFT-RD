@@ -32,8 +32,8 @@ DATA_DIR = os.getenv("TRADER_DATA_DIR", ".")
 # commodities are IG epics (placeholders — CONFIRM current epics in IG's API
 # companion before trading, they differ between demo/live and change over time).
 MARKETS = [
-    {"name": "BTC",   "symbol": "BTC/USDT",               "strategy": "trend",     "venue": "crypto"},
-    {"name": "ETH",   "symbol": "ETH/USDT",               "strategy": "trend",     "venue": "crypto"},
+    {"name": "BTC",   "symbol": "BTC/GBP",                "strategy": "trend",     "venue": "crypto"},
+    {"name": "ETH",   "symbol": "ETH/GBP",                "strategy": "trend",     "venue": "crypto"},
     {"name": "GOLD",  "symbol": "CS.D.CFDGOLD.CFDGC.IP",  "strategy": "trend",     "venue": "ig"},
     {"name": "SILVER","symbol": "CS.D.CFDSILVER.CFDSI.IP","strategy": "bollinger", "venue": "ig"},
     # Oil edge is real but FRAGILE (−37% in 2020). Keep smallest size; meanrev
@@ -50,7 +50,7 @@ IG_RESOLUTION = {"1m": "MINUTE", "5m": "MINUTE_5", "15m": "MINUTE_15",
 
 def run_paper():
     broker = PaperBroker(cash=10_000)
-    risk = RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=3)
+    risk = sized_risk(len(MARKETS), daily_loss_limit_pct=0.05)
     notify = Notifier.from_env()
     engine = Engine(broker, risk, MARKETS, notify=notify)
 
@@ -80,6 +80,14 @@ def run_paper():
           "\nNo closed trades this run.")
 
 
+def sized_risk(n_markets, daily_loss_limit_pct):
+    """Size like the research portfolio: each market gets an equal 1/N share of
+    its venue's equity, and every market may be open at once. (The old 2%-per-
+    trade setting ran ~1/10 of the validated exposure.)"""
+    return RiskManager(per_trade_pct=1.0 / n_markets,
+                       daily_loss_limit_pct=daily_loss_limit_pct, max_open=n_markets)
+
+
 def open_db():
     os.makedirs(DATA_DIR, exist_ok=True)
     return Database(os.path.join(DATA_DIR, "trading.db"))
@@ -104,13 +112,15 @@ def build_live_venues(timeframe, notify, db=None):
 
     if crypto_markets and os.getenv("CRYPTO_API_KEY"):
         from bot.brokers import CcxtBroker
-        exchange = os.getenv("CRYPTO_EXCHANGE", "binance")
+        exchange = os.getenv("CRYPTO_EXCHANGE", "kraken")
         broker = ResilientBroker(CcxtBroker(
-            exchange, os.environ["CRYPTO_API_KEY"], os.environ["CRYPTO_SECRET"]),
-            notify=notify)
+            exchange, os.environ["CRYPTO_API_KEY"], os.environ["CRYPTO_SECRET"],
+            quote=os.getenv("CRYPTO_QUOTE", "GBP")), notify=notify)
         venues.append(Venue(
             "crypto", broker,
-            RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=2),
+            # 8%: at research sizing the crypto book had 16 days below -5% in
+            # 3.5 years (a 5% limit would sell dips) but only 2 below -8%.
+            sized_risk(len(crypto_markets), daily_loss_limit_pct=0.08),
             crypto_markets,
             fetch=lambda m: data.fetch_crypto(m["symbol"], timeframe, exchange=exchange),
             notify=notify, db=db))
@@ -124,7 +134,7 @@ def build_live_venues(timeframe, notify, db=None):
         resolution = IG_RESOLUTION.get(timeframe, "HOUR")
         venues.append(Venue(
             "ig", ResilientBroker(ig, notify=notify),
-            RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=3),
+            sized_risk(len(ig_markets), daily_loss_limit_pct=0.05),
             ig_markets,
             fetch=lambda m: data.fetch_metal_ig(ig, m["symbol"], resolution),
             notify=notify, db=db))
@@ -132,7 +142,7 @@ def build_live_venues(timeframe, notify, db=None):
     return venues
 
 
-def run_live(timeframe="1h", once=False):
+def run_live(timeframe="1d", once=False):
     log = setup_logging(DATA_DIR)
     notify = Notifier.from_env(echo=log.info)         # log every BUY/SELL/halt
     log.info("Starting live trader (timeframe=%s)", timeframe)
@@ -168,7 +178,7 @@ def run_paperlive(once=False):
     notify = Notifier.from_env(echo=log.info)
     db = open_db()
     broker = PaperBroker(cash=10_000)
-    risk = RiskManager(per_trade_pct=0.02, daily_loss_limit_pct=0.05, max_open=4)
+    risk = sized_risk(len(PAPERLIVE_MARKETS), daily_loss_limit_pct=0.05)
     venue = Venue(
         "paperlive", broker, risk, PAPERLIVE_MARKETS,
         fetch=lambda m: data.fetch_yahoo(m["ticker"]),
@@ -189,8 +199,9 @@ if __name__ == "__main__":
                     help="REAL market data, fake money, no keys (recommended first)")
     ap.add_argument("--live", action="store_true",
                     help="real orders (needs .env credentials)")
-    ap.add_argument("--timeframe", default="1h",
-                    help="candle size / loop cadence, e.g. 15m, 1h, 4h, 1d")
+    ap.add_argument("--timeframe", default="1d",
+                    help="candle size / loop cadence. Strategies were validated on "
+                         "1d only; other values are untested")
     ap.add_argument("--once", action="store_true",
                     help="run a single cycle then exit")
     args = ap.parse_args()

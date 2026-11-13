@@ -176,11 +176,12 @@ class Database:
     def trade_stats(self) -> dict:
         r = self._one(
             "SELECT COUNT(*) AS n, SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) AS wins,"
-            " COALESCE(SUM(pnl), 0) AS realized FROM trades")
+            " COALESCE(SUM(pnl), 0) AS realized,"
+            " COALESCE(SUM(commission), 0) AS fees FROM trades")
         n = r["n"] or 0
         return {"trades": n, "wins": r["wins"] or 0,
                 "win_rate": (r["wins"] or 0) / n if n else None,
-                "realized_pnl": r["realized"]}
+                "realized_pnl": r["realized"], "fees": r["fees"]}
 
     # ---- heartbeats ---------------------------------------------------- #
     def heartbeat(self, status, uptime_seconds=0.0, error_message=None):
